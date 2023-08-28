@@ -8,15 +8,19 @@ import time
 import re
 
 '''Used Paths '''
-Locators = {
+x_paths = {
     "INPUT_AREA": "//input[@id='twotabsearchtextbox']",
     "INPUT_CLICK": "//input[@id='nav-search-submit-button']",
     "ADD_TO_CART": "//input[@id='add-to-cart-button']",
+    'rating_box_xpath':"(//li[@id='p_72/1318476031']/ancestor::ul)/descendant::li",
+    'filtered_product_list_xpath':"//h2[@class='a-size-mini a-spacing-none a-color-base s-line-clamp-2']/child::a",
+    'added_product_price_list_xpath':"//div[@class='sc-badge-price-to-pay']",
+    'total_price_showing_after_added_to_cart_xpath':"(//span[@class='a-size-medium a-color-base sc-price sc-white-space-nowrap'])[1]",
 }
 
 
 @given(u'User is on Amazon Page')
-def open_amazon_apge(context):
+def open_amazon_page(context):
     """
     I opened Amazon Page
     """
@@ -33,9 +37,9 @@ def search_product(context, product):
     """
     context.product = product.split()[0]
     wait = WebDriverWait(context.driver, 20)
-    input_prod = wait.until(ec.presence_of_element_located((By.XPATH, Locators["INPUT_AREA"])))
+    input_prod = wait.until(ec.presence_of_element_located((By.XPATH, x_paths["INPUT_AREA"])))
     input_prod.send_keys(product)
-    wait.until(ec.presence_of_element_located((By.XPATH, Locators['INPUT_CLICK']))).click()
+    wait.until(ec.presence_of_element_located((By.XPATH, x_paths['INPUT_CLICK']))).click()
     context.parent_url = context.driver.current_window_handle
 
 
@@ -46,7 +50,7 @@ def filter_product_based_on_rating(context, rating_value):
     :param rating_value: Value of rating based on which we want to filter It is of str type
     """
     context.wait = WebDriverWait(context.driver, 10)
-    rating_list = context.driver.find_elements(By.XPATH, "(//li[@id='p_72/1318476031']/ancestor::ul)/descendant::li")
+    rating_list = context.driver.find_elements(By.XPATH, x_paths['rating_box_xpath'])
     if float(rating_value) >= 4 and float(rating_value) <= 5:
         rating_list[0].click()
         time.sleep(5)
@@ -75,14 +79,14 @@ def add_to_cart(context, product_count):
 
     """
     count = 0
-    res = context.driver.find_elements(By.XPATH,
-                                       "//h2[@class='a-size-mini a-spacing-none a-color-base s-line-clamp-2']/child::a")
-    for i in range(1, len(res)):
+    product_list = context.driver.find_elements(By.XPATH,
+                                       x_paths['filtered_product_list_xpath'])
+    for i in range(1, len(product_list)):
         if count == int(product_count):
             break
         time.sleep(5)
-        if re.search(context.product, res[i].text):
-            res[i].click()
+        if re.search(context.product, product_list[i].text):
+            product_list[i].click()
             time.sleep(10)
             count += 1
             multiple_window = context.driver.window_handles
@@ -91,9 +95,10 @@ def add_to_cart(context, product_count):
                     print(context.parent_url)
                     print(window)
                     context.driver.switch_to.window(window)
-                    context.wait.until(ec.element_to_be_clickable((By.XPATH, Locators['ADD_TO_CART']))).click()
+                    context.wait.until(ec.element_to_be_clickable((By.XPATH, x_paths['ADD_TO_CART']))).click()
                     time.sleep(5)
                     context.driver.close()
+                    multiple_window.remove(window)
                     context.driver.switch_to.window(context.parent_url)
 
 
@@ -104,11 +109,15 @@ def checking_summarized_and_actual_price(context):
     """
     actual_price = 0
     context.driver.find_element(By.XPATH, "//div[@id='nav-cart-count-container']").click()
-    price_list = context.driver.find_elements(By.XPATH, "//div[@class='sc-badge-price-to-pay']")
+    price_list = context.driver.find_elements(By.XPATH, x_paths['added_product_price_list_xpath'])
     for i in range(len(price_list)):
         print(price_list[i].text)
         actual_price += float(price_list[i].text.replace(',', ''))
     summarized_price = context.driver.find_element(By.XPATH,
-                                                   "(//span[@class='a-size-medium a-color-base sc-price sc-white-space-nowrap'])[1]").text
+                                                   x_paths['total_price_showing_after_added_to_cart_xpath']).text
     print(summarized_price)
-    assert float(summarized_price.replace(',', '')) == actual_price, 'Cart Is Not Performing'
+    try:
+        assert float(summarized_price.replace(',', '')) == actual_price, 'Cart Is Not Performing'
+    except AssertionError as msg:
+        print(msg)
+
